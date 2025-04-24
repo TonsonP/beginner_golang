@@ -1,0 +1,12 @@
+services:
+  app:
+    build: .
+    container_name: my-go-app
+    ports:
+      - "8000:8000"
+    volumes:
+      - ..:/app
+    working_dir: /app
+    env_file:
+      - ../.env
+    command: ["tail", "-f", "/dev/null"]
