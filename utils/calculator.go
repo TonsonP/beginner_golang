@@ -3,6 +3,7 @@ package utils
 import (
 	"bufio"
 	"fmt"
+	"math"
 	"os"
 	"regexp"
 	"strconv"
@@ -55,6 +56,30 @@ func sub_clean_operators(s string) string {
 	return "-"
 }
 
+func check_type(s string) string {
+	var output_type string = ""
+
+	if s == "(" {
+		output_type = "lp"
+	}
+
+	if s == ")" {
+		output_type = "rp"
+	}
+
+	if output_type == "" {
+		for _, op := range valid_operator {
+			if op == s {
+				output_type = "op"
+				break
+			}
+		}
+	}
+
+	return output_type
+
+}
+
 func clean_operators(user_input string) string {
 
 	// Clean + and 0 operators
@@ -73,39 +98,64 @@ func clean_operators(user_input string) string {
 	return output
 }
 
-// Initialize:
-//     output_queue ← empty list
-//     operator_stack ← empty stack
+func postfix_evaluator(tokenize_input []interface{}) float32 {
+	var output_stack = []float32{}
+	var output float32 = 0
 
-// For each token in the input:
-//     If token is a number:
-//         Append token to output_queue
+	for _, token := range tokenize_input {
+		// Check whether this is operator or number
+		switch token.(type) {
 
-//     Else if token is an operator (e.g., +, -, *, /, **):
-//         While there is an operator at the top of the operator_stack
-//               and it is not a left parenthesis
-//               and (it has greater precedence OR
-//                    it has equal precedence and is left-associative):
-//             Pop operator from operator_stack and append to output_queue
-//         Push current operator token to operator_stack
+		// This is operators
+		case string:
+			var output float32 = 0
+			right_operand := output_stack[len(output_stack)-1]
+			left_operand := output_stack[len(output_stack)-2]
+			output_stack = output_stack[0 : len(output_stack)-2]
 
-//     Else if token is a left parenthesis "(":
-//         Push it to operator_stack
+			// Apply logic
+			switch token {
+			case "+":
+				output = left_operand + right_operand
+			case "-":
+				output = left_operand - right_operand
+			case "*":
+				output = left_operand * right_operand
+			case "/":
+				output = left_operand / right_operand
+			case "**":
+				output = float32(math.Pow(float64(left_operand), float64(right_operand)))
+			}
 
-//     Else if token is a right parenthesis ")":
-//         While the operator at the top of the stack is not a left parenthesis:
-//             Pop operator from stack and append to output_queue
-//         Pop the left parenthesis from the stack and discard it
+			output_stack = append(output_stack, output)
 
-// After all tokens are read:
-//     While there are still operators on the stack:
-//         If the operator is a parenthesis:
-//             Error: Mismatched parenthesis
-//         Pop operator and append to output_queue
+		// This is number
+		case int, int32, int64, float32, float64:
+			if num, ok := token.(float32); ok {
+				output_stack = append(output_stack, num)
+			} else if num, ok := token.(float64); ok {
+				output_stack = append(output_stack, float32(num)) // Convert to float32
+			}
+		}
 
-// Return output_queue
+	}
 
-func shunting_yard(input_string string, user_select_mode int) float32 {
+	output = output_stack[0]
+
+	// Validate output
+	for _, val := range output_stack {
+		val := float64(val)
+		if math.IsInf(val, -1) || math.IsInf(val, 1) || math.IsNaN(val) {
+			output = float32(val)
+			break
+		}
+
+	}
+
+	return output
+}
+
+func shunting_yard(input_string string, user_select_mode int) []interface{} {
 
 	// Initialize
 	operator := get_operator_precedence(user_select_mode) // Get operator along with its precedence and associativity
@@ -119,125 +169,83 @@ func shunting_yard(input_string string, user_select_mode int) float32 {
 
 	// Loop through each token
 	for _, token := range tokenize_input_string {
-		ctoken, err := strconv.ParseFloat(token, 16) // Try to convert to float
+		ctoken, err := strconv.ParseFloat(token, 32) // Try to convert to float
 
-		// Check whether current token is number or not
+		// If current token is number
 		if err == nil {
-			// if token is number -> add to queue
-			output_queue = append(output_queue, ctoken)
+			output_queue = append(output_queue, ctoken) // Append to queue
 		} else {
-			// In case token is not number
+			// If current token is not number
+			// Check type
+			current_token_type := check_type(token)
 
-			// If output_stack is empty just append it and continue
-			if len(output_stack) == 0 {
-				// Append
-				output_stack = append(output_stack, token)
-				continue
-			}
+			if current_token_type == "op" {
 
-			// Peek at top stack
-			// Check whether it is operators
-			found := false
-			for _, op := range valid_operator {
-				if output_stack[len(output_stack)-1] == op {
-					found = true
-					break
-				}
-			}
-
-			// If top stack is an operators
-			if found {
-				// Initialize
-				current_operator_precedence := operator[token].precedence
-				current_operator_associativity := operator[token].associativity
-
-				for {
-
-					// Guard clauses
-					if len(output_stack) == 0 {
-						break
-					}
-
-					top_stack_precedence := operator[output_stack[len(output_stack)-1]].precedence
-					if (top_stack_precedence > current_operator_precedence) ||
-						((top_stack_precedence == current_operator_precedence) &&
-							(current_operator_associativity == "left")) {
-						// pop operator stack to output queue
-						output_queue = append(output_queue, output_stack[len(output_stack)-1]) // Push last element in stack to queue
-						output_stack = output_stack[0 : len(output_stack)-1]                   // Remove last element
-
-					} else {
-						break
-					}
-				}
-				// push current operator to operator stack
-				output_stack = append(output_stack, token)
-
-			} else {
-				// In case of parentheses
-				if token == "(" {
-
-					// If left parenthese push to stack
+				if len(output_stack) == 0 {
 					output_stack = append(output_stack, token)
-
 				} else {
-					// In case of right parentheses
-					// Pop operator until "(" if found
 					for len(output_stack) > 0 {
 						top := output_stack[len(output_stack)-1]
-						output_stack = output_stack[:len(output_stack)-1] // pop
 
-						if top == "(" {
-							break // discard the "(" and stop popping
+						current_top_type := check_type(top)
+
+						if current_top_type == "lp" {
+							output_stack = append(output_stack, token)
+							break // Exit loop
 						}
-						output_queue = append(output_queue, top)
+
+						// Check precedence of current operators
+						current_top_precedence := operator[top].precedence
+						current_top_associativity := operator[top].associativity
+						current_token_precedence := operator[token].precedence
+
+						if current_top_precedence > current_token_precedence {
+							output_queue = append(output_queue, top)
+							output_stack = output_stack[0 : len(output_stack)-1]
+
+						} else if (current_top_precedence == current_token_precedence) && (current_top_associativity == "left") {
+							output_queue = append(output_queue, top)
+							output_stack = output_stack[0 : len(output_stack)-1]
+
+						} else {
+							output_stack = append(output_stack, token)
+							break // Exit loop
+						}
 					}
+				}
+
+			} else if current_token_type == "lp" {
+				output_stack = append(output_stack, token)
+			} else if current_token_type == "rp" {
+				for len(output_stack) > 0 {
+					top := output_stack[len(output_stack)-1]
+					output_stack = output_stack[0 : len(output_stack)-1]
+					current_top_type := check_type(top)
+
+					if current_top_type == "lp" {
+						// Exit loop
+						break
+					}
+					output_queue = append(output_queue, top)
+
 				}
 			}
 
 		}
+
 	}
 
-	// After we ran out of token pop any remaining operators from operators stack to output queue.
-	// for i := len(output_stack) - 1; i >= 0; i-- {
-	// 	current_output := output_stack[i]
-	// 	output_queue = append(output_queue, current_output)
-	// }
+	// After all tokens are read
+	for len(output_stack) > 0 {
+		top := output_stack[len(output_stack)-1]
+		output_stack = output_stack[0 : len(output_stack)-1]
+		output_queue = append(output_queue, top)
 
-	// if token is operator -> check the top of stack
-	// While the operator at the top of the stack has:
-	// - greater precedence, OR
-	// - equal precedence AND the **current** operator is left-associative
-	// Do:
-	// 	Pop from the operator stack to the output queue
-	// push current operator to operator stack
+	}
 
-	// if current token is left parentheses, push to opeatorstack
-	// if right prantheses, pop operator from operatorstack to output queue until "(" is found
-	// pop/trash "("
-
-	// after all tokens, pop any remaining operators from operatorstack to outputqueue
-
-	fmt.Println(output_queue...)
-
-	return 3.14
+	return output_queue
 
 }
-
-// func calculate(clean_user_input string, user_select_mode int) string {
-
-// 	// Calculate the one in parentheses first.
-// 	parentheses_re := regexp.MustCompile(`\((.*?)\)`)
-
-// 	parentheses_re_matchs := parentheses_re.FindAllStringSubmatch(clean_user_input, -1)
-
-// 	for _, match := range parentheses_re_matchs {
-// 		fmt.Println(match)
-// 	}
-
-// 	return ""
-
-// }
 
 func validate_input(user_input string) string {
 	// Define token patter, matches any: 5, 3.14, +, -, *, **, /
@@ -280,9 +288,11 @@ func Calculator() {
 		fmt.Println("Clean User Input ", clean_user_input)
 
 		// calculate_results := calculate(clean_user_input, user_select_mode)
-		calculate_results := shunting_yard(clean_user_input, user_select_mode)
-		fmt.Println("Calculate results:", calculate_results)
-		// var prev_num, current_num, num1, num2, num3, num4 float64
+		postfix_input := shunting_yard(clean_user_input, user_select_mode)
+
+		// Postfix evaluator
+		output := postfix_evaluator(postfix_input)
+		fmt.Println("Calculate results:", output)
 
 	}
 }
