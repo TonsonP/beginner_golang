@@ -32,11 +32,11 @@ func get_operator_precedence(user_select_mode int) map[string]Operator {
 		operator["/"] = Operator{precedence: 3, associativity: "left"}
 		operator["**"] = Operator{precedence: 4, associativity: "right"}
 	} else if user_select_mode == 2 {
-		operator["+"] = Operator{precedence: 2, associativity: "left"}
-		operator["-"] = Operator{precedence: 2, associativity: "left"}
-		operator["*"] = Operator{precedence: 3, associativity: "left"}
-		operator["/"] = Operator{precedence: 3, associativity: "left"}
-		operator["**"] = Operator{precedence: 4, associativity: "right"}
+		operator["+"] = Operator{precedence: 1, associativity: "left"}
+		operator["-"] = Operator{precedence: 1, associativity: "left"}
+		operator["*"] = Operator{precedence: 1, associativity: "left"}
+		operator["/"] = Operator{precedence: 1, associativity: "left"}
+		operator["**"] = Operator{precedence: 1, associativity: "right"}
 	} else {
 		operator["+"] = Operator{precedence: 2, associativity: "left"}
 		operator["-"] = Operator{precedence: 2, associativity: "left"}
@@ -92,7 +92,7 @@ func clean_operators(user_input string) string {
 	output = re.ReplaceAllString(output, "(")
 
 	// Closing Parentheses
-	re = regexp.MustCompile(`\({2,}`)
+	re = regexp.MustCompile(`\){2,}`)
 	output = re.ReplaceAllString(output, ")")
 
 	return output
